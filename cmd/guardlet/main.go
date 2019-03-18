@@ -19,6 +19,7 @@ package main
 import (
 	"flag"
 	"os"
+	"time"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -33,7 +34,9 @@ import (
 
 func main() {
 	var metricsAddr string
+	var syncPeriod time.Duration
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
+	flag.DurationVar(&syncPeriod, "sync-period", time.Second * 5, "Adjust how often interface configuration is periodically resynced")
 	cfg.AddFlags(flag.CommandLine)
 	flag.Parse()
 	logf.SetLogger(logf.ZapLogger(false))
@@ -54,7 +57,10 @@ func main() {
 
 	// Create a new Cmd to provide shared dependencies and start components
 	log.Info("setting up guardlet")
-	mgr, err := manager.New(cfg, manager.Options{MetricsBindAddress: metricsAddr})
+	mgr, err := manager.New(cfg, manager.Options{
+		MetricsBindAddress: metricsAddr,
+		SyncPeriod: &syncPeriod,
+	})
 	if err != nil {
 		log.Error(err, "unable to set up guardlet")
 		os.Exit(1)
