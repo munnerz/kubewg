@@ -18,9 +18,12 @@ package network
 
 import (
 	"context"
-	wgv1alpha1 "github.com/munnerz/kubewg/pkg/apis/wg/v1alpha1"
+	"fmt"
+	"reflect"
+
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -28,6 +31,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	"github.com/munnerz/kubewg/pkg/api"
+	wgv1alpha1 "github.com/munnerz/kubewg/pkg/apis/wg/v1alpha1"
 )
 
 var log = logf.Log.WithName("controller")
@@ -62,7 +68,49 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
+	// Watch for changes to Peers
+	err = c.Watch(&source.Kind{Type: &wgv1alpha1.Peer{}}, &handler.EnqueueRequestsFromMapFunc{
+		ToRequests: &peerMapper{
+			Client: mgr.GetClient(),
+		},
+	})
+	if err != nil {
+		return err
+	}
+
 	return nil
+}
+
+type peerMapper struct {
+	client.Client
+}
+
+func (m *peerMapper) Map(obj handler.MapObject) (reqs []reconcile.Request) {
+	reqs = []reconcile.Request{}
+
+	p := obj.Object.(*wgv1alpha1.Peer)
+	if p.Status.Network == "" {
+		return nil
+	}
+
+	var networks wgv1alpha1.NetworkList
+	if err := m.Client.List(context.TODO(), &client.ListOptions{Namespace: obj.Meta.GetNamespace()}, &networks); err != nil {
+		log.Error(err, "error listing networks when mapping peers")
+		return
+	}
+
+	for _, n := range networks.Items {
+		if p.Status.Network == n.Name {
+			reqs = append(reqs, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: n.Namespace,
+					Name:      n.Name,
+				},
+			})
+		}
+	}
+
+	return reqs
 }
 
 var _ reconcile.Reconciler = &ReconcileNetwork{}
@@ -75,7 +123,7 @@ type ReconcileNetwork struct {
 
 // Reconcile reads that state of the cluster for a Network object and makes changes based on the state read
 // and what is in the Network.Spec
-// +kubebuilder:rbac:groups=wg.mnrz.xyz,resources=networks,verbs=get;list;watch
+// +kubebuilder:rbac:groups=wg.mnrz.xyz,resources=networks;peers,verbs=get;list;watch
 // +kubebuilder:rbac:groups=wg.mnrz.xyz,resources=networks/status,verbs=get;update;patch
 func (r *ReconcileNetwork) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	// Fetch the Network instance
@@ -90,6 +138,79 @@ func (r *ReconcileNetwork) Reconcile(request reconcile.Request) (reconcile.Resul
 		// Error reading the object - requeue the request.
 		return reconcile.Result{}, err
 	}
+	network := instance.DeepCopy()
+
+	var peers wgv1alpha1.PeerList
+	if err := r.Client.List(context.TODO(), &client.ListOptions{Namespace: network.Namespace}, &peers); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	networkPeers := map[string]struct{}{}
+	allocatedIPs := map[string]string{}
+	for _, alloc := range network.Status.Allocations {
+		allocatedIPs[alloc.Name] = alloc.Address
+	}
+
+	// allocate IPs for any new peers
+	for _, p := range peers.Items {
+		// skip peers that aren't part of this network
+		if p.Status.Network != network.Name {
+			continue
+		}
+		networkPeers[p.Name] = struct{}{}
+
+		allocIP, ok := allocatedIPs[p.Name]
+		if !ok {
+			allocIP, err = allocateIP(&p, network)
+			if err != nil {
+				log.Error(err, "error allocating IP for peer", "peer", p.Name)
+				continue
+			}
+			log.Info("allocated IP address to peer", "peer", p.Name, "address", allocIP)
+			network.Status.Allocations = append(network.Status.Allocations, wgv1alpha1.IPAssignment{
+				Name:    p.Name,
+				Address: allocIP,
+			})
+			continue
+		}
+	}
+
+	var newAllocations []wgv1alpha1.IPAssignment
+	// remove old IPs for peers that have been deleted
+	for _, alloc := range network.Status.Allocations {
+		if _, ok := networkPeers[alloc.Name]; ok {
+			newAllocations = append(newAllocations, alloc)
+		}
+	}
+
+	if !reflect.DeepEqual(instance.Status, network.Status) {
+		log.Info("Updating Network", "namespace", network.Namespace, "name", network.Name)
+		err = r.Status().Update(context.TODO(), network)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+	}
 
 	return reconcile.Result{}, nil
+}
+
+func allocateIP(p *wgv1alpha1.Peer, n *wgv1alpha1.Network) (string, error) {
+	matchesRule := func(rule wgv1alpha1.AllocationRule) bool {
+		if rule.Selector == nil {
+			return true
+		}
+
+		return api.PeerMatchesSelector(p, *rule.Selector)
+	}
+
+	for _, r := range n.Spec.Allocations {
+		if matchesRule(r) {
+			if r.Address == nil {
+				return "", nil
+			}
+			return *r.Address, nil
+		}
+	}
+
+	return "", fmt.Errorf("failed to allocate address")
 }

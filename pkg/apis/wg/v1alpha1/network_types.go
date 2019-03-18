@@ -25,10 +25,38 @@ type NetworkSpec struct {
 	// Subnet is the subnet that encompassing this Wireguard network.
 	// Peer addresses will be automatically assigned out of this subnet.
 	Subnet string `json:"subnet"`
+
+	// Rules for allocating IP addresses to peers
+	// +optional
+	Allocations []AllocationRule `json:"allocations,omitempty"`
+}
+
+type AllocationRule struct {
+	// Address is a designated static address for this peer.
+	// +optional
+	Address *string `json:"address,omitempty"`
+
+	// Selector matches peers that should be allocated an address using this
+	// allocation rule.
+	// If not set, this rule will match all peers and act as the default IP
+	// allocation mechanism for the Network.
+	// +optional
+	Selector *PeerSelector `json:"selector,omitempty"`
 }
 
 // NetworkStatus defines the observed state of Network
 type NetworkStatus struct {
+	// The list of assigned IP addresses for peers
+	// +optional
+	Allocations []IPAssignment `json:"allocations,omitempty"`
+}
+
+type IPAssignment struct {
+	// The name of the Peer that has been allocated an address
+	Name string `json:"name"`
+
+	// The allocated IP address
+	Address string `json:"address"`
 }
 
 // +genclient
@@ -36,6 +64,7 @@ type NetworkStatus struct {
 
 // Network is the Schema for the networks API
 // +k8s:openapi-gen=true
+// +kubebuilder:subresource:status
 type Network struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

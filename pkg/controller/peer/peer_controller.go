@@ -18,13 +18,14 @@ package peer
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"reflect"
 	"strings"
 
-	wgv1alpha1 "github.com/munnerz/kubewg/pkg/apis/wg/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -32,6 +33,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	"github.com/munnerz/kubewg/pkg/api"
+	wgv1alpha1 "github.com/munnerz/kubewg/pkg/apis/wg/v1alpha1"
 )
 
 var log = logf.Log.WithName("controller")
@@ -61,19 +65,84 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
-	// TODO: use a custom mapper to only trigger resyncs of the appropriate Peers
-	err = c.Watch(&source.Kind{Type: &wgv1alpha1.RouteBinding{}}, &handler.EnqueueRequestForObject{})
+	// Watch for changes to RouteBindings in the same network
+	err = c.Watch(&source.Kind{Type: &wgv1alpha1.RouteBinding{}}, &handler.EnqueueRequestsFromMapFunc{
+		ToRequests: &routeBindingMapper{
+			Client: mgr.GetClient(),
+		},
+	})
 	if err != nil {
 		return err
 	}
 
-	// Watch for changes to Network
-	err = c.Watch(&source.Kind{Type: &wgv1alpha1.Network{}}, &handler.EnqueueRequestForObject{})
+	// Watch for changes to peer's networks
+	err = c.Watch(&source.Kind{Type: &wgv1alpha1.Network{}}, &handler.EnqueueRequestsFromMapFunc{
+		ToRequests: &networkMapper{
+			Client: mgr.GetClient(),
+		},
+	})
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+type networkMapper struct {
+	client.Client
+}
+
+func (m *networkMapper) Map(obj handler.MapObject) (reqs []reconcile.Request) {
+	reqs = []reconcile.Request{}
+
+	n := obj.Object.(*wgv1alpha1.Network)
+
+	var peers wgv1alpha1.PeerList
+	if err := m.Client.List(context.TODO(), &client.ListOptions{Namespace: obj.Meta.GetNamespace()}, &peers); err != nil {
+		log.Error(err, "error listing peers when mapping networks")
+		return
+	}
+
+	for _, p := range peers.Items {
+		if n.Name == p.Status.Network {
+			reqs = append(reqs, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: p.Namespace,
+					Name:      p.Name,
+				},
+			})
+		}
+	}
+
+	return reqs
+}
+
+type routeBindingMapper struct {
+	client.Client
+}
+
+func (m *routeBindingMapper) Map(obj handler.MapObject) (reqs []reconcile.Request) {
+	reqs = []reconcile.Request{}
+	r := obj.Object.(*wgv1alpha1.RouteBinding)
+
+	var peers wgv1alpha1.PeerList
+	if err := m.Client.List(context.TODO(), &client.ListOptions{Namespace: obj.Meta.GetNamespace()}, &peers); err != nil {
+		log.Error(err, "error listing peers when mapping route bindings")
+		return
+	}
+
+	for _, p := range peers.Items {
+		if r.Spec.Network == p.Status.Network {
+			reqs = append(reqs, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: p.Namespace,
+					Name:      p.Name,
+				},
+			})
+		}
+	}
+
+	return reqs
 }
 
 var _ reconcile.Reconciler = &ReconcilePeer{}
@@ -143,6 +212,33 @@ func splitNetMask(s string) (string, string) {
 	return s[:idx], s[idx+1:]
 }
 
+func allocateNetwork(p *wgv1alpha1.Peer, networks []wgv1alpha1.Network) (*wgv1alpha1.Network, error) {
+	var allocated *wgv1alpha1.Network
+
+	matchesRule := func(rule wgv1alpha1.AllocationRule) bool {
+		if rule.Selector == nil {
+			return true
+		}
+
+		return api.PeerMatchesSelector(p, *rule.Selector)
+	}
+
+	for _, n := range networks {
+		for _, r := range n.Spec.Allocations {
+			if matchesRule(r) {
+				if allocated != nil {
+					return nil, fmt.Errorf("multiple networks found for peer %q", p.Name)
+				}
+				nCopy := n
+				allocated = &nCopy
+				break
+			}
+		}
+	}
+
+	return allocated, nil
+}
+
 func (r *ReconcilePeer) routeRulesForPeer(p *wgv1alpha1.Peer) ([]wgv1alpha1.RouteBinding, error) {
 	var routeRules wgv1alpha1.RouteBindingList
 	if err := r.Client.List(context.TODO(), &client.ListOptions{Namespace: p.Namespace}, &routeRules); err != nil {
@@ -150,35 +246,13 @@ func (r *ReconcilePeer) routeRulesForPeer(p *wgv1alpha1.Peer) ([]wgv1alpha1.Rout
 	}
 	var bindings []wgv1alpha1.RouteBinding
 	for _, rr := range routeRules.Items {
-		if !peerMatchesSelector(p, rr.Spec.Selector) {
+		if !api.PeerMatchesSelector(p, rr.Spec.Selector) {
 			continue
 		}
 
 		bindings = append(bindings, rr)
 	}
 	return bindings, nil
-}
-
-func peerMatchesSelector(p *wgv1alpha1.Peer, sel wgv1alpha1.PeerSelector) bool {
-	for _, n := range sel.Names {
-		if p.Name == n {
-			return true
-		}
-	}
-	if len(sel.MatchLabels) == 0 {
-		return false
-	}
-	found := true
-	for k, v := range sel.MatchLabels {
-		if v2, ok := p.Labels[k]; !ok || v != v2 {
-			found = false
-			break
-		}
-	}
-	if found {
-		return true
-	}
-	return false
 }
 
 // Reconcile reads that state of the cluster for a Peer object and makes changes based on the state read
@@ -202,29 +276,78 @@ func (r *ReconcilePeer) Reconcile(request reconcile.Request) (reconcile.Result, 
 		// Error reading the object - requeue the request.
 		return reconcile.Result{}, err
 	}
+	peer := instance.DeepCopy()
 
-	log.Info("Finding network for peer", "network", instance.Status.Network)
-	network := &wgv1alpha1.Network{}
-	err = r.Get(context.TODO(), client.ObjectKey{Namespace: request.Namespace, Name: instance.Status.Network}, network)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			log.Info("Network not found", "network", instance.Status.Network)
+	getNetworkForPeer := func() (*wgv1alpha1.Network, error) {
+		log.Info("Finding network for peer", "network", peer.Status.Network)
+		network := &wgv1alpha1.Network{}
+		err = r.Get(context.TODO(), client.ObjectKey{Namespace: request.Namespace, Name: peer.Status.Network}, network)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				log.Info("Network not found", "network", peer.Status.Network)
+				return nil, nil
+			}
+			log.Error(err, "Error looking up Network resource", "network", peer.Status.Network)
+			// Error reading the object - requeue the request.
+			return nil, err
+		}
+		return network, nil
+	}
+
+	switch {
+	case peer.Status.Network == "":
+		log.Info("allocating network for peer", "peer", peer.Name)
+		networkList := &wgv1alpha1.NetworkList{}
+		if err := r.Client.List(context.TODO(), &client.ListOptions{Namespace: peer.Namespace}, networkList); err != nil {
+			return reconcile.Result{}, err
+		}
+
+		n, err := allocateNetwork(peer, networkList.Items)
+		if err != nil {
+			log.Error(err, "error allocating network for peer", "peer", peer.Name)
+			// don't retry until something changes
 			return reconcile.Result{}, nil
 		}
-		log.Error(err, "Error looking up Network resource", "network", instance.Status.Network)
-		// Error reading the object - requeue the request.
-		return reconcile.Result{}, err
-	}
+		if n == nil {
+			log.Info("failed to allocate network for peer", "peer", peer.Name)
+			// don't retry until something changes
+			return reconcile.Result{}, nil
+		}
 
-	log.Info("Computing peer configuration")
-	peer := instance.DeepCopy()
-	// TODO: validate peer.spec.address is a valid address in network.spec.subnet
-	cfgs, err := r.computePeerConfigurations(network.Spec.Subnet, peer.Status.Address, peer)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
+		peer.Status.Network = n.Name
 
-	peer.Status.Peers = cfgs
+	case peer.Status.Address == "":
+		network, err := getNetworkForPeer()
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		if network == nil {
+			return reconcile.Result{}, nil
+		}
+		for _, alloc := range network.Status.Allocations {
+			if alloc.Name == peer.Name {
+				peer.Status.Address = alloc.Address
+				break
+			}
+		}
+
+	default:
+		network, err := getNetworkForPeer()
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		if network == nil {
+			return reconcile.Result{}, nil
+		}
+		log.Info("Computing peer configuration")
+		// TODO: validate peer.spec.address is a valid address in network.spec.subnet
+		cfgs, err := r.computePeerConfigurations(network.Spec.Subnet, peer.Status.Address, peer)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+
+		peer.Status.Peers = cfgs
+	}
 
 	if !reflect.DeepEqual(instance.Status, peer.Status) {
 		log.Info("Updating Peer", "namespace", peer.Namespace, "name", peer.Name)

@@ -32,6 +32,9 @@ type RouteBindingSpec struct {
 
 	// Selector selects peers to route traffic to
 	Selector PeerSelector `json:"selector"`
+
+	// Network is the name of the network this route applies within.
+	Network string `json:"network"`
 }
 
 // RouteBindingStatus defines the observed state of RouteBinding

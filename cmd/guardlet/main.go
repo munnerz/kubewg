@@ -36,7 +36,7 @@ func main() {
 	var metricsAddr string
 	var syncPeriod time.Duration
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
-	flag.DurationVar(&syncPeriod, "sync-period", time.Second * 5, "Adjust how often interface configuration is periodically resynced")
+	flag.DurationVar(&syncPeriod, "sync-period", time.Second*5, "Adjust how often interface configuration is periodically resynced")
 	cfg.AddFlags(flag.CommandLine)
 	flag.Parse()
 	logf.SetLogger(logf.ZapLogger(false))
@@ -59,7 +59,7 @@ func main() {
 	log.Info("setting up guardlet")
 	mgr, err := manager.New(cfg, manager.Options{
 		MetricsBindAddress: metricsAddr,
-		SyncPeriod: &syncPeriod,
+		SyncPeriod:         &syncPeriod,
 	})
 	if err != nil {
 		log.Error(err, "unable to set up guardlet")
