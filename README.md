@@ -351,6 +351,62 @@ From the `laptop` peer, you should now be able to ping the IP address of the
 $ ping 10.20.40.10
 ```
 
+## Adding additional static routes
+
+The kubewg `RouteBinding` resource can be used to configure static routes
+within a VPN network.
+
+This can be used to expose local networks that are routable via VPN peers,
+or to create bridge points where traffic can be switched for the VPNs local
+subnet.
+
+An example of a RouteBinding that exposes the network `192.168.1.0/24` that is
+local to the `server` VPN peer:
+
+```yaml
+apiVersion: wg.mnrz.xyz/v1alpha1
+kind: RouteBinding
+metadata:
+  name: server-localnet
+spec:
+  routes:
+  - 192.168.1.0/24
+  network: examplenet
+  selector:
+    names:
+    - server
+```
+
+This configuration will be automatically propagated to all VPN peers in the
+examplenet network.
+
+### Configuring a static route for the VPN subnet
+
+In cases where you have multiple remote clients connecting to a central
+Wireguard server that need to be able to communicate with each other, it can be
+useful to set up a static route for the VPN network's subnet via the central
+Wireguard server:
+
+```yaml
+apiVersion: wg.mnrz.xyz/v1alpha1
+kind: RouteBinding
+metadata:
+  name: server-localnet
+spec:
+  routes:
+  - 10.20.40.0/24
+  network: examplenet
+  selector:
+    names:
+    - server
+```
+
+If a peer has a more direct route to another peer in the Wireguard mesh, it
+will automatically take the shortest path to that peer.
+
+Otherwise, this route will be used, allowing the central server to attempt to
+route packets to the destination host.
+
 ## Generating a Wireguard .conf file
 
 Some platforms may not support wireguard-go, such as tables and smartphones.
