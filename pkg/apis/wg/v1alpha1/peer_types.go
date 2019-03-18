@@ -56,6 +56,7 @@ type PeerStatus struct {
 
 // Peer is the Schema for the peers API
 // +k8s:openapi-gen=true
+// +kubebuilder:subresource:status
 type Peer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
