@@ -160,6 +160,12 @@ func (r *ReconcilePeer) computePeerConfigurations(subnet, addr string, p *wgv1al
 		return nil, err
 	}
 
+	currentPeerHost, _, err := net.SplitHostPort(p.Spec.Endpoint)
+	if err != nil {
+		return nil, err
+	}
+	listensForConnections := currentPeerHost != ""
+
 	var cfgs []wgv1alpha1.PeerConfiguration
 	for _, peer := range peers.Items {
 		if p.Status.Network != peer.Status.Network {
@@ -174,14 +180,18 @@ func (r *ReconcilePeer) computePeerConfigurations(subnet, addr string, p *wgv1al
 			log.Info("Skipping self", "peer", peer.Name)
 			continue
 		}
+		host, _, err := net.SplitHostPort(peer.Spec.Endpoint)
+		if err != nil {
+			return nil, err
+		}
+		if host == "" && !listensForConnections {
+			log.Info("Skipping peer as neither peer listens for connections", "peer", peer.Name)
+			continue
+		}
 		log.Info("Creating new Peer entry", "peer", peer.Name)
 		cfg := wgv1alpha1.PeerConfiguration{
 			Name:      peer.Name,
 			PublicKey: peer.Spec.PublicKey,
-		}
-		host, _, err := net.SplitHostPort(peer.Spec.Endpoint)
-		if err != nil {
-			return nil, err
 		}
 		if host != "" {
 			log.Info("Setting peer endpoint", "peer", peer.Name, "endpoint", peer.Spec.Endpoint)
