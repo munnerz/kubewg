@@ -307,6 +307,7 @@ guardlet.
 $ sudo guardlet \
     --device-name utun9 \
     --kubeconfig path/to/kubeconfig/file \
+    --private-key-file /etc/wireguard/privatekey \
     --os darwin \
     --peer-name <peer-name> \
 ```
@@ -320,6 +321,7 @@ used.
 $ sudo guardlet \
     --device-name wg0 \
     --kubeconfig path/to/kubeconfig/file \
+    --private-key-file /etc/wireguard/privatekey \
     --os linux \
     --peer-name <peer-name> \
     --use-kernel-module true
