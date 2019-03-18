@@ -11,6 +11,8 @@ spec:
     kind: Network
     plural: networks
   scope: Namespaced
+  subresources:
+    status: {}
   validation:
     openAPIV3Schema:
       properties:
@@ -28,6 +30,34 @@ spec:
           type: object
         spec:
           properties:
+            allocations:
+              description: Rules for allocating IP addresses to peers
+              items:
+                properties:
+                  address:
+                    description: Address is a designated static address for this peer.
+                    type: string
+                  selector:
+                    description: Selector matches peers that should be allocated an
+                      address using this allocation rule. If not set, this rule will
+                      match all peers and act as the default IP allocation mechanism
+                      for the Network.
+                    properties:
+                      matchLabels:
+                        description: MatchLabels can be used to match Peers. If specified,
+                          *all* labels must be present on peers in order for them
+                          to match.
+                        type: object
+                      names:
+                        description: Names is a list of peer names that match this
+                          selector. If multiple names are provided, a Peer 'matches'
+                          if its name is contained within this slice.
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                type: object
+              type: array
             subnet:
               description: Subnet is the subnet that encompassing this Wireguard network.
                 Peer addresses will be automatically assigned out of this subnet.
@@ -36,6 +66,22 @@ spec:
           - subnet
           type: object
         status:
+          properties:
+            allocations:
+              description: The list of assigned IP addresses for peers
+              items:
+                properties:
+                  address:
+                    description: The allocated IP address
+                    type: string
+                  name:
+                    description: The name of the Peer that has been allocated an address
+                    type: string
+                required:
+                - name
+                - address
+                type: object
+              type: array
           type: object
   version: v1alpha1
 status:

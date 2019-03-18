@@ -24,6 +24,7 @@ rules:
   - wg.mnrz.xyz
   resources:
   - networks
+  - peers
   verbs:
   - get
   - list
