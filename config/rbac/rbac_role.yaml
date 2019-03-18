@@ -5,26 +5,6 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - apps
-  resources:
-  - deployments
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - apps
-  resources:
-  - deployments/status
-  verbs:
-  - get
-  - update
-  - patch
-- apiGroups:
   - wg.mnrz.xyz
   resources:
   - peers
@@ -32,34 +12,10 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - wg.mnrz.xyz
   resources:
   - peers/status
-  verbs:
-  - get
-  - update
-  - patch
-- apiGroups:
-  - apps
-  resources:
-  - deployments
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - apps
-  resources:
-  - deployments/status
   verbs:
   - get
   - update
@@ -72,10 +28,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - wg.mnrz.xyz
   resources:
@@ -85,25 +37,14 @@ rules:
   - update
   - patch
 - apiGroups:
-  - apps
+  - wg.mnrz.xyz
   resources:
-  - deployments
+  - networks
+  - routebindings
   verbs:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - apps
-  resources:
-  - deployments/status
-  verbs:
-  - get
-  - update
-  - patch
 - apiGroups:
   - wg.mnrz.xyz
   resources:
@@ -112,56 +53,11 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - wg.mnrz.xyz
   resources:
   - peers/status
   verbs:
-  - get
-  - update
-  - patch
-- apiGroups:
-  - apps
-  resources:
-  - deployments
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - apps
-  resources:
-  - deployments/status
-  verbs:
-  - get
-  - update
-  - patch
-- apiGroups:
-  - wg.mnrz.xyz
-  resources:
-  - routebindings
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - wg.mnrz.xyz
-  resources:
-  - routebindings/status
-  verbs:
-  - get
   - update
   - patch
 - apiGroups:
