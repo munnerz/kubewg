@@ -367,7 +367,7 @@ local to the `server` VPN peer:
 apiVersion: wg.mnrz.xyz/v1alpha1
 kind: RouteBinding
 metadata:
-  name: server-localnet
+  name: server-localnet-route
 spec:
   routes:
   - 192.168.1.0/24
@@ -391,7 +391,7 @@ Wireguard server:
 apiVersion: wg.mnrz.xyz/v1alpha1
 kind: RouteBinding
 metadata:
-  name: server-localnet
+  name: examplenet-subnet-default-route
 spec:
   routes:
   - 10.20.40.0/24
