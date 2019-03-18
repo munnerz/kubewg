@@ -1,0 +1,9 @@
+apiVersion: wg.mnrz.xyz/v1alpha1
+kind: RouteBinding
+metadata:
+  labels:
+    controller-tools.k8s.io: "1.0"
+  name: routebinding-sample
+spec:
+  # Add fields here
+  foo: bar

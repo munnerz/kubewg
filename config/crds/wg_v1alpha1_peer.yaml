@@ -1,0 +1,90 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  creationTimestamp: null
+  labels:
+    controller-tools.k8s.io: "1.0"
+  name: peers.wg.mnrz.xyz
+spec:
+  group: wg.mnrz.xyz
+  names:
+    kind: Peer
+    plural: peers
+  scope: Namespaced
+  validation:
+    openAPIV3Schema:
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          properties:
+            endpoint:
+              description: Endpoint is an optional endpoint that should be used to
+                connect to this peer. If not specified, other peers in the network
+                will accept connections from this peer, but no direct connection will
+                be made *to* the peer.
+              type: string
+            publicKey:
+              description: PublicKey that should be used to authenticate traffic from
+                this peer
+              type: string
+          required:
+          - publicKey
+          type: object
+        status:
+          properties:
+            address:
+              description: Address is the allocated IP address of this peer within
+                the VPN network
+              type: string
+            network:
+              description: Network is the name of the VPN network that this peer belongs
+                to
+              type: string
+            peers:
+              description: Peers is a computed list of peers that should be configured
+                on this peer's wireguard interface.
+              items:
+                properties:
+                  allowedIPs:
+                    description: AllowedIPs is a list of IP addresses that should
+                      be allowed as the src parameter on IP packets coming from this
+                      peer. This also acts as a loose routing table, where subnet
+                      named here will be routed via this peer.
+                    items:
+                      type: string
+                    type: array
+                  endpoint:
+                    description: Endpoint is the optional endpoint address to connect
+                      to in order to establish a secure Wireguard link.
+                    type: string
+                  name:
+                    description: Name is the peer's name, as stored in its metadata
+                    type: string
+                  publicKey:
+                    description: PublicKey is the public key that should be used to
+                      authenticate traffic from this peer
+                    type: string
+                required:
+                - name
+                - publicKey
+                type: object
+              type: array
+          type: object
+  version: v1alpha1
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
