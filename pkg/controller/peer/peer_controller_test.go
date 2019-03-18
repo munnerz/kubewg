@@ -37,8 +37,8 @@ import (
 )
 
 type testLogger struct {
-	t *testing.T
-	names []string
+	t      *testing.T
+	names  []string
 	values []interface{}
 }
 
@@ -93,7 +93,7 @@ func TestReconcileTwoPeers(t *testing.T) {
 	instance := &wgv1alpha1.Peer{ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: "default"},
 		Spec: wgv1alpha1.PeerSpec{
 			PublicKey: "public",
-			Endpoint: ":12345",
+			Endpoint:  ":12345",
 		},
 		Status: wgv1alpha1.PeerStatus{
 			Address: "1.2.3.4/24",
@@ -113,7 +113,7 @@ func TestReconcileTwoPeers(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "foo2", Namespace: "default"},
 			Spec: wgv1alpha1.PeerSpec{
 				PublicKey: "publicpeer",
-				Endpoint: "example.com:12345",
+				Endpoint:  "example.com:12345",
 			},
 			Status: wgv1alpha1.PeerStatus{
 				Address: "1.2.3.5/24",
@@ -175,14 +175,14 @@ func TestReconcileTwoPeers(t *testing.T) {
 	}
 
 	g.Eventually(requests, timeout).Should(gomega.Receive(gomega.Equal(expectedRequest)))
-	expectedStatus1 :=  wgv1alpha1.PeerStatus{
+	expectedStatus1 := wgv1alpha1.PeerStatus{
 		Address: "1.2.3.4/24",
 		Network: "testnet",
 		Peers: []wgv1alpha1.PeerConfiguration{
 			{
-				Name: "foo2",
-				PublicKey: "publicpeer",
-				Endpoint: "example.com:12345",
+				Name:       "foo2",
+				PublicKey:  "publicpeer",
+				Endpoint:   "example.com:12345",
 				AllowedIPs: []string{"1.2.3.5/32"},
 			},
 		},
@@ -199,15 +199,14 @@ func TestReconcileTwoPeers(t *testing.T) {
 		return nil
 	}, timeout).Should(gomega.Succeed())
 
-
 	g.Eventually(requests, timeout).Should(gomega.Receive(gomega.Equal(expectedRequest2)))
-	expectedStatus2 :=  wgv1alpha1.PeerStatus{
+	expectedStatus2 := wgv1alpha1.PeerStatus{
 		Address: "1.2.3.5/24",
 		Network: "testnet",
 		Peers: []wgv1alpha1.PeerConfiguration{
 			{
-				Name: "foo",
-				PublicKey: "public",
+				Name:       "foo",
+				PublicKey:  "public",
 				AllowedIPs: []string{"1.2.3.4/32"},
 			},
 		},
@@ -231,7 +230,7 @@ func TestReconcileTwoPeersOneRouteRule(t *testing.T) {
 	instance := &wgv1alpha1.Peer{ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: "default"},
 		Spec: wgv1alpha1.PeerSpec{
 			PublicKey: "public",
-			Endpoint: ":12345",
+			Endpoint:  ":12345",
 		},
 		Status: wgv1alpha1.PeerStatus{
 			Address: "1.2.3.4/24",
@@ -251,7 +250,7 @@ func TestReconcileTwoPeersOneRouteRule(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "foo2", Namespace: "default"},
 			Spec: wgv1alpha1.PeerSpec{
 				PublicKey: "publicpeer",
-				Endpoint: "example.com:12345",
+				Endpoint:  "example.com:12345",
 			},
 			Status: wgv1alpha1.PeerStatus{
 				Address: "1.2.3.5/24",
@@ -337,14 +336,14 @@ func TestReconcileTwoPeersOneRouteRule(t *testing.T) {
 	}
 
 	g.Eventually(requests, timeout).Should(gomega.Receive(gomega.Equal(expectedRequest)))
-	expectedStatus1 :=  wgv1alpha1.PeerStatus{
+	expectedStatus1 := wgv1alpha1.PeerStatus{
 		Address: "1.2.3.4/24",
 		Network: "testnet",
 		Peers: []wgv1alpha1.PeerConfiguration{
 			{
-				Name: "foo2",
-				PublicKey: "publicpeer",
-				Endpoint: "example.com:12345",
+				Name:       "foo2",
+				PublicKey:  "publicpeer",
+				Endpoint:   "example.com:12345",
 				AllowedIPs: []string{"1.2.3.5/32", "9.9.9.9/32"},
 			},
 		},
@@ -361,15 +360,14 @@ func TestReconcileTwoPeersOneRouteRule(t *testing.T) {
 		return nil
 	}, timeout).Should(gomega.Succeed())
 
-
 	g.Eventually(requests, timeout).Should(gomega.Receive(gomega.Equal(expectedRequest2)))
-	expectedStatus2 :=  wgv1alpha1.PeerStatus{
+	expectedStatus2 := wgv1alpha1.PeerStatus{
 		Address: "1.2.3.5/24",
 		Network: "testnet",
 		Peers: []wgv1alpha1.PeerConfiguration{
 			{
-				Name: "foo",
-				PublicKey: "public",
+				Name:       "foo",
+				PublicKey:  "public",
 				AllowedIPs: []string{"1.2.3.4/32"},
 			},
 		},

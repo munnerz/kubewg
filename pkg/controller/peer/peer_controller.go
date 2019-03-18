@@ -68,7 +68,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	}
 
 	// Watch for changes to Network
-	err = c.Watch(&source.Kind{Type: &wgv1alpha1.Peer{}}, &handler.EnqueueRequestForObject{})
+	err = c.Watch(&source.Kind{Type: &wgv1alpha1.Network{}}, &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
@@ -107,7 +107,7 @@ func (r *ReconcilePeer) computePeerConfigurations(subnet, addr string, p *wgv1al
 		}
 		log.Info("Creating new Peer entry", "peer", peer.Name)
 		cfg := wgv1alpha1.PeerConfiguration{
-			Name: peer.Name,
+			Name:      peer.Name,
 			PublicKey: peer.Spec.PublicKey,
 		}
 		host, _, err := net.SplitHostPort(peer.Spec.Endpoint)
@@ -136,7 +136,7 @@ func (r *ReconcilePeer) computePeerConfigurations(subnet, addr string, p *wgv1al
 
 func splitNetMask(s string) (string, string) {
 	idx := strings.Index(s, "/")
-	if idx == -1 || idx == len(s) - 1 {
+	if idx == -1 || idx == len(s)-1 {
 		// TODO: support IPv6
 		return s, "32"
 	}
@@ -186,8 +186,9 @@ func peerMatchesSelector(p *wgv1alpha1.Peer, sel wgv1alpha1.PeerSelector) bool {
 // TODO(user): Modify this Reconcile function to implement your Controller logic.  The scaffolding writes
 // a Deployment as an example
 // Automatically generate RBAC rules to allow the Controller to read and write Deployments
-// +kubebuilder:rbac:groups=wg.mnrz.xyz,resources=networks,routebindings,verbs=get;list;watch
-// +kubebuilder:rbac:groups=wg.mnrz.xyz,resources=peers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=wg.mnrz.xyz,resources=networks;routebindings,verbs=get;list;watch
+// +kubebuilder:rbac:groups=wg.mnrz.xyz,resources=peers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=wg.mnrz.xyz,resources=peers/status,verbs=update;patch
 func (r *ReconcilePeer) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	// Fetch the Peer instance
 	instance := &wgv1alpha1.Peer{}

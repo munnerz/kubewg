@@ -1,6 +1,6 @@
 
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+IMG ?= munnerz/kubewg-manager:canary
 
 all: test manager
 

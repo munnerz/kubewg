@@ -6,12 +6,12 @@ import (
 )
 
 var (
-	WGBinary string
-	DeviceName string
-	PeerName string
-	PrivateKeyFile string
+	WGBinary        string
+	DeviceName      string
+	PeerName        string
+	PrivateKeyFile  string
 	UseKernelModule bool
-	OS string
+	OS              string
 )
 
 func AddFlags(fs *flag.FlagSet) {

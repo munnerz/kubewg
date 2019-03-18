@@ -33,7 +33,7 @@ type PeerSpec struct {
 	// If not specified, other peers in the network will accept connections
 	// from this peer, but no direct connection will be made *to* the peer.
 	// +optional
-	Endpoint  string `json:"endpoint,omitempty"`
+	Endpoint string `json:"endpoint,omitempty"`
 }
 
 // PeerStatus defines the observed state of Peer
@@ -66,16 +66,16 @@ type Peer struct {
 
 type PeerConfiguration struct {
 	// Name is the peer's name, as stored in its metadata
-	Name       string   `json:"name"`
+	Name string `json:"name"`
 
 	// PublicKey is the public key that should be used to authenticate traffic
 	// from this peer
-	PublicKey  string   `json:"publicKey"`
+	PublicKey string `json:"publicKey"`
 
 	// Endpoint is the optional endpoint address to connect to in order to
 	// establish a secure Wireguard link.
 	// +optional
-	Endpoint   string   `json:"endpoint,omitempty"`
+	Endpoint string `json:"endpoint,omitempty"`
 
 	// AllowedIPs is a list of IP addresses that should be allowed as the src
 	// parameter on IP packets coming from this peer.

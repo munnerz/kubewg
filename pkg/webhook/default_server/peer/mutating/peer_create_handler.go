@@ -38,17 +38,17 @@ func init() {
 
 // PeerCreateHandler handles Peer
 type PeerCreateHandler struct {
-	Client  client.Client
+	Client client.Client
 
 	// Decoder decodes objects
 	Decoder types.Decoder
 }
 
 func (h *PeerCreateHandler) mutatingPeerFn(ctx context.Context, obj *wgv1alpha1.Peer) error {
-	if obj.Spec.Network == "" {
+	if obj.Status.Network == "" {
 		return fmt.Errorf("network must be specified")
 	}
-	if obj.Spec.Address != "" {
+	if obj.Status.Address != "" {
 		return nil
 	}
 
@@ -76,6 +76,7 @@ func (h *PeerCreateHandler) Handle(ctx context.Context, req types.Request) types
 }
 
 var _ inject.Client = &PeerCreateHandler{}
+
 //
 //// InjectClient injects the client into the PeerCreateHandler
 func (h *PeerCreateHandler) InjectClient(c client.Client) error {

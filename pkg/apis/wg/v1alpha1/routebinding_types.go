@@ -28,7 +28,7 @@ type RouteBindingSpec struct {
 	// via that peer.
 	// If multiple peers match, then multiple routes will be created and it is
 	// up to the systems routing table to decide which route to use.
-	Routes   []string     `json:"routes,omitempty"`
+	Routes []string `json:"routes,omitempty"`
 
 	// Selector selects peers to route traffic to
 	Selector PeerSelector `json:"selector"`
@@ -42,7 +42,7 @@ type PeerSelector struct {
 	// Names is a list of peer names that match this selector.
 	// If multiple names are provided, a Peer 'matches' if its name is
 	// contained within this slice.
-	Names       []string          `json:"names,omitempty"`
+	Names []string `json:"names,omitempty"`
 
 	// MatchLabels can be used to match Peers. If specified, *all* labels must
 	// be present on peers in order for them to match.
