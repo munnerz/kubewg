@@ -228,7 +228,7 @@ func (r *ReconcilePeer) Reconcile(request reconcile.Request) (reconcile.Result, 
 
 	if !reflect.DeepEqual(instance.Status, peer.Status) {
 		log.Info("Updating Peer", "namespace", peer.Namespace, "name", peer.Name)
-		err = r.Update(context.TODO(), peer)
+		err = r.Status().Update(context.TODO(), peer)
 		if err != nil {
 			return reconcile.Result{}, err
 		}

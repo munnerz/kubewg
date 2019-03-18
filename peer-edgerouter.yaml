@@ -4,7 +4,6 @@ metadata:
   name: mnrz
 spec:
   subnet: 10.30.51.0/24
-  selector: {}
 ---
 apiVersion: wg.mnrz.xyz/v1alpha1
 kind: Peer
@@ -50,7 +49,6 @@ metadata:
   name: marley
 spec:
   subnet: 192.168.53.1/24
-  selector: {}
 ---
 apiVersion: wg.mnrz.xyz/v1alpha1
 kind: Peer
