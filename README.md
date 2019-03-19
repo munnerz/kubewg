@@ -128,7 +128,7 @@ spec:
   # peers.
   # This is typically done when the peer sits behind a NAT firewall, e.g.
   # laptops and phones that may be portable.
-  address: :12345
+  endpoint: :12345
   # Enter the public key of the 'laptop' wireguard peer here.
   # This public key is generated in the 2nd step of the guide.
   # You should be able to find this file at /etc/wireguard/publickey.
@@ -144,7 +144,7 @@ kind: Peer
 metadata:
   name: server
 spec:
-  address: wg.example.com:12345
+  endpoint: wg.example.com:12345
   # Enter the public key of the 'server' wireguard peer here.
   # This public key is generated in the 2nd step of the guide.
   # You should be able to find this file at /etc/wireguard/publickey.
