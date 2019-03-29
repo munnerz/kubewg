@@ -23,9 +23,11 @@ import (
 	"reflect"
 	"strings"
 
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -48,7 +50,7 @@ func Add(mgr manager.Manager) error {
 
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcilePeer{Client: mgr.GetClient(), scheme: mgr.GetScheme()}
+	return &ReconcilePeer{Client: mgr.GetClient(), scheme: mgr.GetScheme(), recorder: mgr.GetRecorder("peer-controller")}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -150,7 +152,8 @@ var _ reconcile.Reconciler = &ReconcilePeer{}
 // ReconcilePeer reconciles a Peer object
 type ReconcilePeer struct {
 	client.Client
-	scheme *runtime.Scheme
+	scheme   *runtime.Scheme
+	recorder record.EventRecorder
 }
 
 func (r *ReconcilePeer) computePeerConfigurations(subnet, addr string, p *wgv1alpha1.Peer) ([]wgv1alpha1.PeerConfiguration, error) {
@@ -273,6 +276,7 @@ func (r *ReconcilePeer) routeRulesForPeer(p *wgv1alpha1.Peer) ([]wgv1alpha1.Rout
 // +kubebuilder:rbac:groups=wg.mnrz.xyz,resources=networks;routebindings,verbs=get;list;watch
 // +kubebuilder:rbac:groups=wg.mnrz.xyz,resources=peers,verbs=get;list;watch
 // +kubebuilder:rbac:groups=wg.mnrz.xyz,resources=peers/status,verbs=update;patch
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 func (r *ReconcilePeer) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	// Fetch the Peer instance
 	instance := &wgv1alpha1.Peer{}
@@ -325,6 +329,7 @@ func (r *ReconcilePeer) Reconcile(request reconcile.Request) (reconcile.Result, 
 		}
 
 		peer.Status.Network = n.Name
+		r.recorder.Eventf(peer, v1.EventTypeNormal, "Assigned", "Assigned peer to network %q", n.Name)
 
 	case peer.Status.Address == "":
 		network, err := getNetworkForPeer()
@@ -337,6 +342,7 @@ func (r *ReconcilePeer) Reconcile(request reconcile.Request) (reconcile.Result, 
 		for _, alloc := range network.Status.Allocations {
 			if alloc.Name == peer.Name {
 				peer.Status.Address = alloc.Address
+				r.recorder.Eventf(peer, v1.EventTypeNormal, "Allocated", "Allocated peer IP address %q", alloc.Address)
 				break
 			}
 		}
@@ -356,6 +362,10 @@ func (r *ReconcilePeer) Reconcile(request reconcile.Request) (reconcile.Result, 
 			return reconcile.Result{}, err
 		}
 
+		if !reflect.DeepEqual(peer.Status.Peers, cfgs) {
+			r.recorder.Event(peer, v1.EventTypeNormal, "Update", "Detected change in peer endpoints")
+		}
+
 		peer.Status.Peers = cfgs
 	}
 
@@ -365,6 +375,8 @@ func (r *ReconcilePeer) Reconcile(request reconcile.Request) (reconcile.Result, 
 		if err != nil {
 			return reconcile.Result{}, err
 		}
+
+		r.recorder.Event(peer, v1.EventTypeNormal, "Configured", "Updated peer configuration")
 	}
 
 	return reconcile.Result{}, nil
