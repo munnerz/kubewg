@@ -30,6 +30,9 @@ spec:
           type: object
         spec:
           properties:
+            network:
+              description: Network is the name of the network this route applies within.
+              type: string
             routes:
               description: Routes is a list of subnets that should be routed via peers
                 matching the given selector. If a peer matches the selector, all routes
@@ -56,6 +59,7 @@ spec:
               type: object
           required:
           - selector
+          - network
           type: object
         status:
           type: object
