@@ -19,6 +19,7 @@ package peer
 import (
 	"fmt"
 	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"reflect"
 	"strings"
@@ -87,6 +88,186 @@ var peerKey2 = types.NamespacedName{Name: "foo2", Namespace: "default"}
 
 const timeout = time.Second * 5
 
+func strPtr(s string) *string {
+	return &s
+}
+
+func TestAssignNetwork(t *testing.T) {
+	log = &testLogger{t: t}
+	g := gomega.NewGomegaWithT(t)
+	instance := &wgv1alpha1.Peer{ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: "default"},
+		Spec: wgv1alpha1.PeerSpec{
+			PublicKey: "public",
+			Endpoint:  ":12345",
+		},
+	}
+	existingNetworks := []wgv1alpha1.Network{
+		{
+			ObjectMeta: metav1.ObjectMeta{Name: "testnet", Namespace: "default"},
+			Spec: wgv1alpha1.NetworkSpec{
+				Subnet: "1.2.3.0/24",
+				Allocations: []wgv1alpha1.AllocationRule{
+					{
+						Address: strPtr("1.2.3.120"),
+						Selector: &wgv1alpha1.PeerSelector{
+							Names: []string{"foo"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Setup the Manager and Controller.  Wrap the Controller Reconcile function so it writes each request to a
+	// channel when it is finished.
+	mgr, err := manager.New(cfg, manager.Options{})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	c = mgr.GetClient()
+
+	recFn, requests := SetupTestReconcile(newReconciler(mgr))
+	g.Expect(add(mgr, recFn)).NotTo(gomega.HaveOccurred())
+
+	stopMgr, mgrStopped := StartTestManager(mgr, g)
+
+	defer func() {
+		close(stopMgr)
+		mgrStopped.Wait()
+	}()
+
+	submitThenCleanup := func(obj runtime.Object) func() {
+		err := c.Create(context.TODO(), obj)
+		if apierrors.IsInvalid(err) {
+			t.Logf("failed to create object, got an invalid object error: %v", err)
+			t.Fail()
+			return nil
+		}
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+
+		err = c.Status().Update(context.TODO(), obj)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+
+		return func() {
+			c.Delete(context.TODO(), obj)
+		}
+	}
+
+	defer submitThenCleanup(instance)()
+
+	for _, n := range existingNetworks {
+		defer submitThenCleanup(&n)()
+	}
+
+	g.Eventually(requests, timeout).Should(gomega.Receive(gomega.Equal(expectedRequest)))
+	expectedStatus1 := wgv1alpha1.PeerStatus{
+		Network: "testnet",
+	}
+	// Ensure the peer has the network allocated
+	g.Eventually(func() error {
+		updatedPeer := &wgv1alpha1.Peer{}
+		if err := c.Get(context.TODO(), peerKey, updatedPeer); err != nil {
+			return err
+		}
+		if !reflect.DeepEqual(updatedPeer.Status, expectedStatus1) {
+			return fmt.Errorf("unexpected difference: %s", diff.ObjectReflectDiff(updatedPeer.Status, expectedStatus1))
+		}
+		return nil
+	}, timeout).Should(gomega.Succeed())
+}
+
+func TestAssignIP(t *testing.T) {
+	log = &testLogger{t: t}
+	g := gomega.NewGomegaWithT(t)
+	instance := &wgv1alpha1.Peer{ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: "default"},
+		Spec: wgv1alpha1.PeerSpec{
+			PublicKey: "public",
+			Endpoint:  ":12345",
+		},
+		Status: wgv1alpha1.PeerStatus{
+			Network: "testnet",
+		},
+	}
+	existingNetworks := []wgv1alpha1.Network{
+		{
+			ObjectMeta: metav1.ObjectMeta{Name: "testnet", Namespace: "default"},
+			Spec: wgv1alpha1.NetworkSpec{
+				Subnet: "1.2.3.0/24",
+				Allocations: []wgv1alpha1.AllocationRule{
+					{
+						Address: strPtr("1.2.3.120"),
+						Selector: &wgv1alpha1.PeerSelector{
+							Names: []string{"foo"},
+						},
+					},
+				},
+			},
+			Status: wgv1alpha1.NetworkStatus{
+				Allocations: []wgv1alpha1.IPAssignment{
+					{
+						Name:    "foo",
+						Address: "1.2.3.120",
+					},
+				},
+			},
+		},
+	}
+
+	// Setup the Manager and Controller.  Wrap the Controller Reconcile function so it writes each request to a
+	// channel when it is finished.
+	mgr, err := manager.New(cfg, manager.Options{})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	c = mgr.GetClient()
+
+	recFn, requests := SetupTestReconcile(newReconciler(mgr))
+	g.Expect(add(mgr, recFn)).NotTo(gomega.HaveOccurred())
+
+	stopMgr, mgrStopped := StartTestManager(mgr, g)
+
+	defer func() {
+		close(stopMgr)
+		mgrStopped.Wait()
+	}()
+
+	submitThenCleanup := func(obj runtime.Object) func() {
+		err := c.Create(context.TODO(), obj)
+		if apierrors.IsInvalid(err) {
+			t.Logf("failed to create object, got an invalid object error: %v", err)
+			t.Fail()
+			return nil
+		}
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+
+		err = c.Status().Update(context.TODO(), obj)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+
+		return func() {
+			c.Delete(context.TODO(), obj)
+		}
+	}
+
+	defer submitThenCleanup(instance)()
+
+	for _, n := range existingNetworks {
+		defer submitThenCleanup(&n)()
+	}
+
+	g.Eventually(requests, timeout).Should(gomega.Receive(gomega.Equal(expectedRequest)))
+	expectedStatus1 := wgv1alpha1.PeerStatus{
+		Address: "1.2.3.120",
+		Network: "testnet",
+	}
+	// Ensure the peer has the network allocated
+	g.Eventually(func() error {
+		updatedPeer := &wgv1alpha1.Peer{}
+		if err := c.Get(context.TODO(), peerKey, updatedPeer); err != nil {
+			return err
+		}
+		if !reflect.DeepEqual(updatedPeer.Status, expectedStatus1) {
+			return fmt.Errorf("unexpected difference: %s", diff.ObjectReflectDiff(updatedPeer.Status, expectedStatus1))
+		}
+		return nil
+	}, timeout).Should(gomega.Succeed())
+}
+
 func TestReconcileTwoPeers(t *testing.T) {
 	log = &testLogger{t: t}
 	g := gomega.NewGomegaWithT(t)
@@ -138,40 +319,30 @@ func TestReconcileTwoPeers(t *testing.T) {
 		mgrStopped.Wait()
 	}()
 
-	// Create the Peer object and expect the Reconcile and Deployment to be created
-	err = c.Create(context.TODO(), instance)
-	// The instance object may not be a valid object because it might be missing some required fields.
-	// Please modify the instance object by adding required fields and then remove the following if statement.
-	if apierrors.IsInvalid(err) {
-		t.Logf("failed to create object, got an invalid object error: %v", err)
-		return
+	submitThenCleanup := func(obj runtime.Object) func() {
+		err := c.Create(context.TODO(), obj)
+		if apierrors.IsInvalid(err) {
+			t.Logf("failed to create object, got an invalid object error: %v", err)
+			t.Fail()
+			return nil
+		}
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+
+		err = c.Status().Update(context.TODO(), obj)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+
+		return func() {
+			c.Delete(context.TODO(), obj)
+		}
 	}
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-	defer c.Delete(context.TODO(), instance)
+
+	defer submitThenCleanup(instance)()
 
 	for _, peer := range existingPeers {
-		err = c.Create(context.TODO(), &peer)
-		// The instance object may not be a valid object because it might be missing some required fields.
-		// Please modify the instance object by adding required fields and then remove the following if statement.
-		if apierrors.IsInvalid(err) {
-			t.Logf("failed to create additional object, got an invalid object error: %v", err)
-			return
-		}
-		g.Expect(err).NotTo(gomega.HaveOccurred())
-		p := peer
-		defer c.Delete(context.TODO(), &p)
+		defer submitThenCleanup(&peer)()
 	}
 	for _, n := range existingNetworks {
-		err = c.Create(context.TODO(), &n)
-		// The instance object may not be a valid object because it might be missing some required fields.
-		// Please modify the instance object by adding required fields and then remove the following if statement.
-		if apierrors.IsInvalid(err) {
-			t.Logf("failed to create additional object, got an invalid object error: %v", err)
-			return
-		}
-		g.Expect(err).NotTo(gomega.HaveOccurred())
-		p := n
-		defer c.Delete(context.TODO(), &p)
+		defer submitThenCleanup(&n)()
 	}
 
 	g.Eventually(requests, timeout).Should(gomega.Receive(gomega.Equal(expectedRequest)))
@@ -287,52 +458,33 @@ func TestReconcileTwoPeersOneRouteRule(t *testing.T) {
 		mgrStopped.Wait()
 	}()
 
-	// Create the Peer object and expect the Reconcile and Deployment to be created
-	err = c.Create(context.TODO(), instance)
-	// The instance object may not be a valid object because it might be missing some required fields.
-	// Please modify the instance object by adding required fields and then remove the following if statement.
-	if apierrors.IsInvalid(err) {
-		t.Logf("failed to create object, got an invalid object error: %v", err)
-		return
+	submitThenCleanup := func(obj runtime.Object) func() {
+		err := c.Create(context.TODO(), obj)
+		if apierrors.IsInvalid(err) {
+			t.Logf("failed to create object, got an invalid object error: %v", err)
+			t.Fail()
+			return nil
+		}
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+
+		err = c.Status().Update(context.TODO(), obj)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+
+		return func() {
+			c.Delete(context.TODO(), obj)
+		}
 	}
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-	defer c.Delete(context.TODO(), instance)
+
+	defer submitThenCleanup(instance)()
 
 	for _, peer := range existingPeers {
-		err = c.Create(context.TODO(), &peer)
-		// The instance object may not be a valid object because it might be missing some required fields.
-		// Please modify the instance object by adding required fields and then remove the following if statement.
-		if apierrors.IsInvalid(err) {
-			t.Logf("failed to create additional object, got an invalid object error: %v", err)
-			return
-		}
-		g.Expect(err).NotTo(gomega.HaveOccurred())
-		p := peer
-		defer c.Delete(context.TODO(), &p)
+		defer submitThenCleanup(&peer)()
 	}
 	for _, n := range existingNetworks {
-		err = c.Create(context.TODO(), &n)
-		// The instance object may not be a valid object because it might be missing some required fields.
-		// Please modify the instance object by adding required fields and then remove the following if statement.
-		if apierrors.IsInvalid(err) {
-			t.Logf("failed to create additional object, got an invalid object error: %v", err)
-			return
-		}
-		g.Expect(err).NotTo(gomega.HaveOccurred())
-		p := n
-		defer c.Delete(context.TODO(), &p)
+		defer submitThenCleanup(&n)()
 	}
 	for _, n := range existingRouteRules {
-		err = c.Create(context.TODO(), &n)
-		// The instance object may not be a valid object because it might be missing some required fields.
-		// Please modify the instance object by adding required fields and then remove the following if statement.
-		if apierrors.IsInvalid(err) {
-			t.Logf("failed to create additional object, got an invalid object error: %v", err)
-			return
-		}
-		g.Expect(err).NotTo(gomega.HaveOccurred())
-		p := n
-		defer c.Delete(context.TODO(), &p)
+		defer submitThenCleanup(&n)()
 	}
 
 	g.Eventually(requests, timeout).Should(gomega.Receive(gomega.Equal(expectedRequest)))
