@@ -1,0 +1,11 @@
+name: Main workflow
+on: [push]
+jobs:
+  build:
+    name: Build
+    steps:
+    - uses: actions/checkout@master
+    - uses: actions/setup-go@v1
+      with:
+        version: '1.12.7'
+    - run: go build .
