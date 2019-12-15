@@ -20,7 +20,7 @@ jobs:
       run: |
         sudo mkdir -p /usr/local/kubebuilder
         curl -L https://github.com/kubernetes-sigs/kubebuilder/releases/download/v1.0.8/kubebuilder_1.0.8_linux_amd64.tar.gz | \
-          sudo tar -C /usr/local/kubebuilder xvf -
+          sudo tar -xvfC /usr/local/kubebuilder -
 
     - name: Run tests
       run: make test
