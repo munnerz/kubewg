@@ -1,0 +1,26 @@
+name: Go
+on: [pull_request]
+jobs:
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Set up Go 1.12
+      uses: actions/setup-go@v1
+      with:
+        go-version: 1.12
+      id: go
+
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v1
+
+    - name: Get kubebuilder
+      run: |
+        mkdir -p /usr/local/kubebuilder
+        curl -L https://github.com/kubernetes-sigs/kubebuilder/releases/download/v1.0.8/kubebuilder_1.0.8_linux_amd64.tar.gz | \
+          tar -C /usr/local/kubebuilder xvf -
+
+    - name: Run tests
+      run: make test
