@@ -32,4 +32,6 @@ jobs:
         export PATH=$PATH:/usr/local/kubebuilder/bin
 
     - name: Run tests
-      run: make test
+      run: |
+        export GOPATH=$(go env GOPATH)
+        make test
